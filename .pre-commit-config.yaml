@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.14.8
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+      # Run the formatter.
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (type checking)
+        entry: mypy
+        language: system
+        types: [python]
+
+      - id: pytest
+        name: pytest (run tests on pre-push)
+        entry: pytest -q
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
