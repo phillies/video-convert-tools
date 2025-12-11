@@ -73,7 +73,6 @@ def get_language(stream: dict[str, Any]) -> str:
     return "unk"
 
 
-@cache
 def get_video_info(video_file: Path) -> VideoInfo | None:
     """Get video information using ffprobe.
 
@@ -114,7 +113,7 @@ def get_video_info(video_file: Path) -> VideoInfo | None:
         codec=video_streams[0]["codec_name"],
         audio_languages=tuple(get_language(stream) for stream in audio_streams),
         subtitle_languages=tuple(get_language(stream) for stream in subtitle_streams),
-        duration=float(file_info["format"]["duration"]),
+        duration=float(file_info.get("format", {}).get("duration", 0)),
     )
 
 
@@ -171,6 +170,10 @@ def convert_video(
         video_info (VideoInfo): The video information of the input file.
         dry_run (bool): If True, only log the ffmpeg command without executing it.
     """
+    if not video_file.exists():
+        logger.error(f"Input video file {video_file} does not exist.")
+        return
+
     input_stream = ffmpeg.input(video_file)
 
     mux_streams: list[FilterableStream] = []

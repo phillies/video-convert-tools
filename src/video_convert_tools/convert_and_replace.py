@@ -1,4 +1,5 @@
 import shutil
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -15,6 +16,8 @@ from video_convert_tools.basics import (
 from video_convert_tools.logging import logger
 
 ACCEPTABLE_CODECS_DEFAULT = ("hevc",)
+# Minimum duration difference in seconds to consider a conversion failed
+MIN_DURATION_DIFFERENCE = 5.0
 
 
 def _filter_files_with_acceptable_codecs(
@@ -78,7 +81,14 @@ def main(
     video_codec: Annotated[
         str, typer.Option(help="Target video codec for the conversion")
     ] = "hevc_nvenc",
+    check_only: Annotated[
+        bool, typer.Option(help="Only check for files to convert, do not convert")
+    ] = False,
+    subtitle_like_audio: Annotated[
+        bool, typer.Option(help="Treat subtitle streams like audio streams")
+    ] = False,
 ) -> None:
+    subtitle_language = audio_language if subtitle_like_audio else subtitle_language
     ffmpeg_config = FFMPEGConfig(
         video_codec=video_codec,
         video_config={
@@ -102,9 +112,11 @@ def main(
     )
 
     logger.info(f"Found {len(convertable_files)} files to convert")
-    logger.info(f"{convertable_files}")
 
-    temp_file = Path("temp.mkv")
+    if check_only:
+        return
+
+    temp_file = Path(f"temp_{int(time.time())}.mkv")
     for video_file in track(convertable_files, description="Converting video files"):
         source_video_info = get_video_info(video_file)
         logger.info(f"Converting file {video_file} with info {source_video_info}")
@@ -126,12 +138,21 @@ def main(
         if target_video_info is None:
             logger.error(f"Conversion failed for file {video_file}, temp file missing")
             continue
+        logger.info(f"Converted file info: {target_video_info}")
         if (
-            abs(target_video_info.duration - source_video_info.duration)
+            (
+                duration_difference := abs(
+                    target_video_info.duration - source_video_info.duration
+                )
+            )
             > duration_tolerance * source_video_info.duration
+            and duration_difference > MIN_DURATION_DIFFERENCE
         ):
             logger.error(
-                f"Conversion failed for file {video_file}, duration mismatch of more than {duration_tolerance * 100:.0f}%"
+                f"Conversion failed for file {video_file}, duration mismatch of more than "
+                f"{duration_tolerance * 100:.0f}%: {duration_difference:.2f}s with source "
+                f"duration {source_video_info.duration:.2f}s and target duration "
+                f"{target_video_info.duration:.2f}s"
             )
             continue
 
